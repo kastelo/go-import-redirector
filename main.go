@@ -79,7 +79,7 @@ var (
 	letsEncryptEmail = flag.String("letsencrypt", "", "use lets encrypt to issue TLS certificate, agreeing to TOS as `email` (implies -tls)")
 	importPath       string
 	repoPath         string
-	wildcard         bool
+	wildcard         int
 )
 
 func usage() {
@@ -93,7 +93,6 @@ func usage() {
 }
 
 func main() {
-	// log.SetFlags(0)
 	log.SetPrefix("go-import-redirector: ")
 	flag.Usage = usage
 	flag.Parse()
@@ -108,8 +107,8 @@ func main() {
 	if strings.HasSuffix(importPath, "/*") != strings.HasSuffix(repoPath, "/*") {
 		log.Fatal("either both import and repo must have /* or neither")
 	}
-	if strings.HasSuffix(importPath, "/*") {
-		wildcard = true
+	for strings.HasSuffix(importPath, "/*") {
+		wildcard++
 		importPath = strings.TrimSuffix(importPath, "/*")
 		repoPath = strings.TrimSuffix(repoPath, "/*")
 	}
@@ -150,7 +149,7 @@ type data struct {
 func redirect(w http.ResponseWriter, req *http.Request) {
 	path := strings.TrimSuffix(req.Host+req.URL.Path, "/")
 	var importRoot, repoRoot, suffix string
-	if wildcard {
+	if wildcard > 0 {
 		if path == importPath {
 			http.Redirect(w, req, "https://godoc.org/"+importPath, 302)
 			return
@@ -160,8 +159,15 @@ func redirect(w http.ResponseWriter, req *http.Request) {
 			return
 		}
 		elem := path[len(importPath)+1:]
-		if i := strings.Index(elem, "/"); i >= 0 {
-			elem, suffix = elem[:i], elem[i:]
+		if parts := strings.Split(elem, "/"); len(parts) >= wildcard {
+			elem = strings.Join(parts[:wildcard], "/")
+			suffix = strings.Join(parts[wildcard:], "/")
+			if suffix != "" {
+				suffix = "/" + suffix
+			}
+		} else {
+			http.NotFound(w, req)
+			return
 		}
 		importRoot = importPath + "/" + elem
 		repoRoot = repoPath + "/" + elem
