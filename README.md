@@ -1,1 +1,1 @@
-go get [-u] github.com/jonaz/go-import-redirector
+go get [-u] github.com/fortnoxab/go-import-redirector
