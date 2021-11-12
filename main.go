@@ -68,18 +68,15 @@ import (
 	"net/http"
 	"os"
 	"strings"
-
-	"golang.org/x/crypto/acme/autocert"
 )
 
 var (
-	addr             = flag.String("addr", ":http", "serve http on `address`")
-	serveTLS         = flag.Bool("tls", false, "serve https on :443")
-	vcs              = flag.String("vcs", "git", "set version control `system`")
-	letsEncryptEmail = flag.String("letsencrypt", "", "use lets encrypt to issue TLS certificate, agreeing to TOS as `email` (implies -tls)")
-	importPath       string
-	repoPath         string
-	wildcard         int
+	addr       = flag.String("addr", ":http", "serve http on `address`")
+	vcs        = flag.String("vcs", "git", "set version control `system`")
+	godocURL   = flag.String("godoc-url", "", "URL to send the browser to if not fetched using go get")
+	importPath string
+	repoPath   string
+	wildcard   int
 )
 
 func usage() {
@@ -114,16 +111,10 @@ func main() {
 	}
 	http.HandleFunc(strings.TrimSuffix(importPath, "/")+"/", redirect)
 	http.HandleFunc(importPath+"/.ping", pong) // non-redirecting URL for debugging TLS certificates
-	if !*serveTLS {
-		log.Fatal(http.ListenAndServe(*addr, nil))
+	err := http.ListenAndServe(*addr, nil)
+	if err != nil {
+		log.Fatal(err)
 	}
-
-	host := importPath
-	if i := strings.Index(host, "/"); i >= 0 {
-		host = host[:i]
-	}
-
-	log.Fatal(http.Serve(autocert.NewListener(host), nil))
 }
 
 var tmpl = template.Must(template.New("main").Parse(`<!DOCTYPE html>
@@ -131,10 +122,10 @@ var tmpl = template.Must(template.New("main").Parse(`<!DOCTYPE html>
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
 <meta name="go-import" content="{{.ImportRoot}} {{.VCS}} {{.VCSRoot}}">
-<meta http-equiv="refresh" content="0; url=https://godoc.org/{{.ImportRoot}}{{.Suffix}}">
+<meta http-equiv="refresh" content="0; url={{.GoDocURL}}/{{.ImportRoot}}{{.Suffix}}">
 </head>
 <body>
-Redirecting to docs at <a href="https://godoc.org/{{.ImportRoot}}{{.Suffix}}">godoc.org/{{.ImportRoot}}{{.Suffix}}</a>...
+Redirecting to docs at <a href="{{.GoDocURL}}/{{.ImportRoot}}{{.Suffix}}">godoc.org/{{.ImportRoot}}{{.Suffix}}</a>...
 </body>
 </html>
 `))
@@ -144,6 +135,7 @@ type data struct {
 	VCS        string
 	VCSRoot    string
 	Suffix     string
+	GoDocURL   string
 }
 
 func redirect(w http.ResponseWriter, req *http.Request) {
@@ -151,7 +143,7 @@ func redirect(w http.ResponseWriter, req *http.Request) {
 	var importRoot, repoRoot, suffix string
 	if wildcard > 0 {
 		if path == importPath {
-			http.Redirect(w, req, "https://godoc.org/"+importPath, 302)
+			http.Redirect(w, req, *godocURL+"/"+importPath, http.StatusFound)
 			return
 		}
 		if !strings.HasPrefix(path, importPath+"/") {
@@ -185,6 +177,7 @@ func redirect(w http.ResponseWriter, req *http.Request) {
 		VCS:        *vcs,
 		VCSRoot:    repoRoot,
 		Suffix:     suffix,
+		GoDocURL:   *godocURL,
 	}
 	var buf bytes.Buffer
 	err := tmpl.Execute(&buf, d)
