@@ -109,6 +109,9 @@ func main() {
 		importPath = strings.TrimSuffix(importPath, "/*")
 		repoPath = strings.TrimSuffix(repoPath, "/*")
 	}
+
+	*godocURL = strings.TrimRight(*godocURL, "/")
+
 	http.HandleFunc(strings.TrimSuffix(importPath, "/")+"/", redirect)
 	http.HandleFunc(importPath+"/.ping", pong) // non-redirecting URL for debugging TLS certificates
 	err := http.ListenAndServe(*addr, nil)
@@ -125,7 +128,7 @@ var tmpl = template.Must(template.New("main").Parse(`<!DOCTYPE html>
 <meta http-equiv="refresh" content="0; url={{.GoDocURL}}/{{.ImportRoot}}{{.Suffix}}">
 </head>
 <body>
-Redirecting to docs at <a href="{{.GoDocURL}}/{{.ImportRoot}}{{.Suffix}}">godoc.org/{{.ImportRoot}}{{.Suffix}}</a>...
+Redirecting to docs at <a href="{{.GoDocURL}}/{{.ImportRoot}}{{.Suffix}}">{{.GoDocURL}}/{{.ImportRoot}}{{.Suffix}}</a>...
 </body>
 </html>
 `))
